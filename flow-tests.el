@@ -27,3 +27,9 @@
   const c: number = a + b;
   return c;
 }")
+
+(js2-flow-deftest-parse ft-union-types
+  "function concat(a: number | string, b) {
+  const c: number | string = a + b;
+  return c;
+}")
