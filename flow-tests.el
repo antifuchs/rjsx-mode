@@ -33,3 +33,9 @@
   const c: number | string = a + b;
   return c;
 }")
+
+(js2-flow-deftest-parse ft-literal-types
+  "function concat(a: \"A\", b: true | false | null | string) {
+  const c: number | string = a + b;
+  return c;
+}")
