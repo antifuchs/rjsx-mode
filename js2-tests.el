@@ -61,15 +61,17 @@ Debugging routine. NODE and ENDP are from `js2-visit-ast'."
             (cl-destructuring-bind (_ pos len) (car (last errors))
               (should (string= syntax-error (substring code-string
                                                        (1- pos) (+ pos len -1))))))
-        (should (= 0 (length (js2-ast-root-errors ast))))
+        (should (eql nil (js2-ast-root-errors ast)))
         (ert-with-test-buffer (:name 'copy)
           (js2-print-tree ast)
           (skip-chars-backward " \t\n")
           (should (string= (or reference code-string)
                            (buffer-substring-no-properties
                             (point-min) (point)))))
-        (should (= (or warnings-count 0)
-                   (length (js2-ast-root-warnings ast))))))))
+        (if (= (or warnings-count 0) 0)
+            (should (eql '() (js2-ast-root-warnings ast)))
+          (should (= (or warnings-count 0)
+                     (length (js2-ast-root-warnings ast)))))))))
 
 (cl-defmacro js2-deftest-parse (name code-string &key bind syntax-error errors-count
                                      reference warnings-count)
