@@ -21,3 +21,9 @@
   "function concat(a: number, b: number) {
   return a + b;
 }")
+
+(js2-flow-deftest-parse ft-const-decl
+  "function concat(a: number, b) {
+  const c: number = a + b;
+  return c;
+}")
