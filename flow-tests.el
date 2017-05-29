@@ -6,7 +6,7 @@
 (require 'ert)
 
 (cl-defmacro js2-flow-deftest-parse (name code-string &key bind syntax-error errors-count
-                                     warnings-count (expected-result :passed))
+                                     warnings-count (expected-result :passed) reference)
   "Parse a flow-ed string."
   (declare (indent defun))
   `(ert-deftest ,(intern (format "js2-%s" name)) ()
@@ -16,7 +16,7 @@
                               :syntax-error ,syntax-error
                               :errors-count ,errors-count
                               :warnings-count ,warnings-count
-                              :reference ,code-string))))
+                              :reference ,(or reference code-string)))))
 
 (js2-flow-deftest-parse flow-type-function-decl
   "function concat(a: number, b: number) {
@@ -94,4 +94,9 @@ function blub(a: MyObject, b: MyObject) {
   "function method(): number {
   return 1;
 }"
-  :expected-result :failed)
+  ;; TODO: js2 prints function nodes in a highly specific way, so we
+  ;; can't get the return type back.
+  :reference
+  "function method() {
+  return 1;
+}")
