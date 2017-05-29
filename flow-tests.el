@@ -84,6 +84,11 @@ function blub(a: MyObject, b: MyObject) {
   prop = 42;
 }")
 
+(js2-flow-deftest-parse flow-type-tuple-types
+  "function identity(value: [number]) {
+  return value;
+}")
+
 (js2-flow-deftest-parse flow-type-generic-functions
   "function identity<T>(value: T) {
   return value;
