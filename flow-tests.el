@@ -45,3 +45,8 @@
   const c: number | string = a + b;
   return c;
 }")
+
+(js2-flow-deftest-parse flow-type-maybe-types
+  "function blub(a: ?number, b: ?string) {
+  return a + b;
+}")
