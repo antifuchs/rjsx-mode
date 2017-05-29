@@ -17,24 +17,30 @@
                               :warnings-count ,warnings-count
                               :reference ,code-string))))
 
-(js2-flow-deftest-parse ft-function-decl
+(js2-flow-deftest-parse flow-type-function-decl
   "function concat(a: number, b: number) {
   return a + b;
 }")
 
-(js2-flow-deftest-parse ft-const-decl
+(js2-flow-deftest-parse flow-type-const-decl
   "function concat(a: number, b) {
   const c: number = a + b;
   return c;
 }")
 
-(js2-flow-deftest-parse ft-union-types
+(js2-flow-deftest-parse flow-type-union-types
   "function concat(a: number | string, b) {
   const c: number | string = a + b;
   return c;
 }")
 
-(js2-flow-deftest-parse ft-literal-types
+(js2-flow-deftest-parse flow-type-intersection-types
+  "function concat(a: number & string, b) {
+  const c: number | string = a + b;
+  return c;
+}")
+
+(js2-flow-deftest-parse flow-type-literal-types
   "function concat(a: \"A\", b: true | false | null | string) {
   const c: number | string = a + b;
   return c;
