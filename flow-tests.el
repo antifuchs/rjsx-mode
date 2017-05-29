@@ -77,8 +77,12 @@ function blub(a: MyObject, b: MyObject) {
 (js2-flow-deftest-parse flow-type-class-fields
   "class MyClass {
   prop: number = 42;
-}"
-  :expected-result :failed)
+}")
+
+(js2-flow-deftest-parse flow-type-unannotated-class
+  "class MyClass {
+  prop = 42;
+}")
 
 (js2-flow-deftest-parse flow-type-generic-functions
   "function identity<T>(value: T) {
