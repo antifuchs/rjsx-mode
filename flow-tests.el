@@ -47,6 +47,16 @@
 }")
 
 (js2-flow-deftest-parse flow-type-maybe-types
-  "function blub(a: ?number, b: ?string) {
+  "function blub(a: ?number, b: ?\"oink\") {
+  return a + b;
+}")
+
+(js2-flow-deftest-parse flow-type-complex-union-types
+  "function blub(a: ?number, b: \"bar\" | ?\"oink\") {
+  return a + b;
+}")
+
+(js2-flow-deftest-parse flow-type-complex-union-types-left
+  "function blub(a: ?number, b: ?\"oink\" | \"bar\") {
   return a + b;
 }")
