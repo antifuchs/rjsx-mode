@@ -60,3 +60,19 @@
   "function blub(a: ?number, b: ?\"oink\" | \"bar\") {
   return a + b;
 }")
+
+(js2-flow-deftest-parse flow-type-plain-aliases
+  "type MyObject = string;
+function blub(a: MyObject, b: MyObject) {
+  return a + b;
+}")
+
+(js2-flow-deftest-parse flow-type-object-aliases
+  "type MyObject = {
+  foo: number,
+  bar: boolean,
+  baz: string,
+};
+function blub(a: MyObject, b: MyObject) {
+  return a + b;
+}")
