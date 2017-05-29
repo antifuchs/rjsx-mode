@@ -68,11 +68,7 @@ function blub(a: MyObject, b: MyObject) {
 }")
 
 (js2-flow-deftest-parse flow-type-object-aliases
-  "type MyObject = {
-  foo: number,
-  bar: boolean,
-  baz: string,
-};
+  "type MyObject = {foo: number, bar: boolean, baz: string};
 function blub(a: MyObject, b: MyObject) {
   return a + b;
 }")
