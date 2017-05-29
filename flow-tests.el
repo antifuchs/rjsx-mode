@@ -6,10 +6,11 @@
 (require 'ert)
 
 (cl-defmacro js2-flow-deftest-parse (name code-string &key bind syntax-error errors-count
-                                     warnings-count)
+                                     warnings-count (expected-result :passed))
   "Parse a flow-ed string."
   (declare (indent defun))
   `(ert-deftest ,(intern (format "js2-%s" name)) ()
+     :expected-result ,expected-result
      (let ,(append bind '((js2-basic-offset 2)))
        (js2-test-parse-string ,(format "// @flow\n%s" code-string)
                               :syntax-error ,syntax-error
@@ -72,3 +73,21 @@ function blub(a: MyObject, b: MyObject) {
 function blub(a: MyObject, b: MyObject) {
   return a + b;
 }")
+
+(js2-flow-deftest-parse flow-type-class-fields
+  "class MyClass {
+  prop: number = 42;
+}"
+  :expected-result :failed)
+
+(js2-flow-deftest-parse flow-type-generic-functions
+  "function identity<T>(value: T) {
+  return value;
+}"
+  :expected-result :failed)
+
+(js2-flow-deftest-parse flow-type-function-return
+  "function method(): number {
+  return 1;
+}"
+  :expected-result :failed)
