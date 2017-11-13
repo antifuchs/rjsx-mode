@@ -1,4 +1,4 @@
-;;; tjsx-tests.el --- Tests for rjsx-mode.    -*- lexical-binding: t -*-
+;;; rjsx-tests.el --- Tests for rjsx-mode.    -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2016 Felipe Ochoa
 
@@ -126,6 +126,115 @@
 (js2-deftest-parse undeclared-component-lowercase-ok
   "const C = function() {  return <component abc={123}/>;\n};"
   :warnings-count 0)
+
+(ert-deftest rjsx-syntax-table-in-text ()
+  "Ensure JSX text sequences use the default syntax table."
+  (ert-with-test-buffer (:name 'rjsx)
+    (insert "const d = <div>{/* this is a comment */}This is")
+    (save-excursion (insert "' text{ anExpression }</div>;"))
+    (setq parse-sexp-lookup-properties t)
+    (js2-mode--and-parse)
+    (should (eq (syntax-class (syntax-after (point))) (syntax-class (string-to-syntax "."))))))
+
+(defun rjsx-serialize-ast ()
+  "Return a streamlined ast representation."
+  (let ((stack '(())))
+    (js2-visit-ast
+     js2-mode-ast
+     (lambda (node end-p)
+       (if end-p
+           (push (nreverse (pop stack)) (car stack))
+         (push (list (js2-node-len node)
+                     (js2-node-pos node)
+                     (js2-node-short-name node))
+               stack))))
+    (caar stack)))
+
+(ert-deftest rjsx-jsx-tag-names-ast ()
+  "Regression test for #54. Ensure the ast is properly built."
+  (ert-with-test-buffer (:name 'rjsx)
+    (insert "import Comp from 'abc';\n\nconst c = () => (\n  <Comp>Child</Comp>\n);")
+    (js2-mode--and-parse)
+    (should (equal (rjsx-serialize-ast)
+                   '("js2-ast-root" 1 66
+                     ("js2-import-node" 0 23
+                      ("js2-import-clause-node" 0 11
+                       ("js2-export-binding-node" 7 4
+                        ("js2-name-node" 0 4)))
+                      ("js2-from-clause-node" 12 10))
+                     ("js2-expr-stmt-node" 25 41
+                      ("js2-var-decl-node" 0 40
+                       ("js2-var-init-node" 6 34
+                        ("js2-name-node" 0 1)
+                        ("js2-function-node" 4 30
+                         ("js2-paren-node" 6 24
+                          ("rjsx-node" 4 18
+                           ("rjsx-member" 1 4
+                            ("rjsx-identifier" 0 4
+                             ("js2-name-node" 0 4)))
+                           ("rjsx-text" 6 5)
+                           ("rjsx-closing-tag" 11 7
+                            ("rjsx-member" 2 4
+                             ("rjsx-identifier" 0 4
+                              ("js2-name-node" 0 4)))))))))))))))
+
+(ert-deftest rjsx-jsx-self-closing-tag-names-ast ()
+  "Regression test for #54. Ensure the ast is properly built."
+  (ert-with-test-buffer (:name 'rjsx)
+    (insert "import Component from 'abc';\n\nconst c = () => (\n  <Component/>\n);")
+    (js2-mode--and-parse)
+    (should (equal (rjsx-serialize-ast)
+                   '("js2-ast-root" 1 65
+                     ("js2-import-node" 0 28
+                      ("js2-import-clause-node" 0 16
+                       ("js2-export-binding-node" 7 9
+                        ("js2-name-node" 0 9)))
+                      ("js2-from-clause-node" 17 10))
+                     ("js2-expr-stmt-node" 30 35
+                      ("js2-var-decl-node" 0 34
+                       ("js2-var-init-node" 6 28
+                        ("js2-name-node" 0 1)
+                        ("js2-function-node" 4 24
+                         ("js2-paren-node" 6 18
+                          ("rjsx-node" 4 12
+                           ("rjsx-member" 1 9
+                            ("rjsx-identifier" 0 9
+                             ("js2-name-node" 0 9))))))))))))))
+
+(ert-deftest rjsx-jsx-attr-pos-ast ()
+  "Regression test for #54. Ensure the ast is properly built."
+  (ert-with-test-buffer (:name 'rjsx)
+    (insert "import Comp from 'abc';\n\nconst c = () => (\n  <Comp a=\"b\" {...{}}>Child</Comp>\n);")
+
+    (js2-mode--and-parse)
+    (should (equal (rjsx-serialize-ast)
+                   '("js2-ast-root" 1 80
+                     ("js2-import-node" 0 23
+                      ("js2-import-clause-node" 0 11
+                       ("js2-export-binding-node" 7 4
+                        ("js2-name-node" 0 4)))
+                      ("js2-from-clause-node" 12 10))
+                     ("js2-expr-stmt-node" 25 55
+                      ("js2-var-decl-node" 0 54
+                       ("js2-var-init-node" 6 48
+                        ("js2-name-node" 0 1)
+                        ("js2-function-node" 4 44
+                         ("js2-paren-node" 6 38
+                          ("rjsx-node" 4 32
+                           ("rjsx-member" 1 4
+                            ("rjsx-identifier" 0 4
+                             ("js2-name-node" 0 4)))
+                           ("rjsx-attr" 6 5
+                            ("rjsx-identifier" 0 1
+                             ("js2-name-node" 0 1))
+                            ("js2-string-node" 2 3))
+                           ("rjsx-spread" 12 7
+                            ("js2-object-node" 4 2))
+                           ("rjsx-text" 20 5)
+                           ("rjsx-closing-tag" 25 7
+                            ("rjsx-member" 2 4
+                             ("rjsx-identifier" 0 4
+                              ("js2-name-node" 0 4)))))))))))))))
 
 ;;; Now we test all of the malformed bits:
 
@@ -585,6 +694,105 @@ Currently only forms with syntax errors are supported.
                          ""))
         (erase-buffer)))))
 
+(ert-deftest rjsx-electric-lt-prefix-arg ()
+  (let ((cases '("let c = "
+                 "let c = (\n  "
+                 "let c = (\n  <div>\n    "
+                 "let c = name => "
+                 "let c = (\n  <div>\n    {value}\n    "
+                 "let c = <div a={"
+                 "let c = [\n  <div />,\n  "
+                 "let c = <div>{a && "
+                 "let c = <div>{a || "
+                 "let c = <div>{a ? "
+                 "let c = <div>{a ? null :"
+                 "return ")))
+    (ert-with-test-buffer (:name 'origin)
+      (dolist (contents cases)
+        (insert contents)
+        (rjsx-electric-lt 3)
+        (should (string= (buffer-substring-no-properties (point-min) (point))
+                         (concat contents "<<<")))
+        (should (string= (buffer-substring-no-properties (point) (point-max))
+                         ""))
+        (erase-buffer)))))
+
+(ert-deftest rjsx-electric-gt ()
+  (let ((cases '("let c = (\n  <div>\n    <Component a=\"123\"/>\n  </div>)"
+                 "let c = <Component/>"
+                 "let c = (\n  <Component {...props}/>\n)"
+                 "let c = name => <Component b='123'/>"
+                 "let c = (\n  <div>\n    {value}\n    <Component/>\n  </div>)"
+                 "let c = <div a={<Component/>}/>"
+                 "let c = <div>{a && <Component a={123}/>}</div>"
+                 "let c = <div>{a || <Component/>}</div>"
+                 "let c = <div>{a ? <Component/> : null}</div>"
+                 "let c = <div>{a ? null : <Component/>}</div>"
+                 "return <Component/>")))
+    (ert-with-test-buffer (:name 'origin)
+      (dolist (contents cases)
+        (insert contents)
+        (goto-char 0)
+        (search-forward "/>")
+        (backward-char 2)
+        (js2-mode--and-parse)
+        (let ((start-point (point)))
+          (rjsx-electric-gt 1)
+          (should (= (1+ start-point) (point)))
+          (should (string= (buffer-substring-no-properties (point-min) (point))
+                           (concat (substring contents 0 (1- start-point)) ">")))
+          (should (string= (buffer-substring-no-properties (point) (point-max))
+                           (concat "</Component>" (substring contents (1+ start-point)))))
+          (erase-buffer))
+        (message "succeeded with %s" (prin1 contents))))))
+
+(ert-deftest rjsx-electric-gt-grounded ()
+  (let ((cases '(("let C = () => (\n  <WithRegex a={" . "/>/}></WithRegex>\n);")
+                 ("let c = 3 " . "+ 4")
+                 ("if (n " . "=== undefined) return;")
+                 ("(abc && def) " . "\n")
+                 ("<Component><". "/Component"))))
+    (ert-with-test-buffer (:name 'origin)
+      (dolist (contents cases)
+        (insert (car contents))
+        (save-excursion (insert (cdr contents)))
+        (js2-mode--and-parse)
+        (rjsx-electric-gt 1)
+        (should (string= (buffer-substring-no-properties (point-min) (point))
+                         (concat (car contents) ">")))
+        (should (string= (buffer-substring-no-properties (point) (point-max))
+                         (cdr contents)))
+        (erase-buffer)))))
+
+(ert-deftest rjsx-electric-gt-prefix-arg ()
+  (let ((cases '("let c = (\n  <div>\n    <Component a=\"123\"/>\n  </div>)"
+                 "let c = <Component/>"
+                 "let c = (\n  <Component {...props}/>\n)"
+                 "let c = name => <Component b='123'/>"
+                 "let c = (\n  <div>\n    {value}\n    <Component/>\n  </div>)"
+                 "let c = <div a={<Component/>}/>"
+                 "let c = <div>{a && <Component a={123}/>}</div>"
+                 "let c = <div>{a || <Component/>}</div>"
+                 "let c = <div>{a ? <Component/> : null}</div>"
+                 "let c = <div>{a ? null : <Component/>}</div>"
+                 "return <Component/>")))
+    (ert-with-test-buffer (:name 'origin)
+      (dolist (contents cases)
+        (insert contents)
+        (goto-char 0)
+        (search-forward "/>")
+        (backward-char 2)
+        (js2-mode--and-parse)
+        (let ((start-point (point)))
+          (rjsx-electric-gt 2)
+          (should (= (+ 2 start-point) (point)))
+          (should (string= (buffer-substring-no-properties (point-min) (point))
+                           (concat (substring contents 0 (1- start-point)) ">>")))
+          (should (string= (buffer-substring-no-properties (point) (point-max))
+                           (substring contents (1- start-point))))
+          (erase-buffer))
+        (message "succeeded with %s" (prin1 contents))))))
+
 (ert-deftest rjsx-delete-creates-full-tag ()
   (let ((cases '("let c = (\n  <div>\n    <Component a=\"123\"/>\n  </div>)"
                  "let c = <Component/>"
@@ -738,5 +946,16 @@ Currently only forms with syntax errors are supported.
           (message (concat pre "|" post))
           (should (string= (buffer-substring-no-properties (point-min) (point-max)) exp)))))))
 
+(ert-deftest rjsx-auto-reparse ()
+  (ert-with-test-buffer (:name 'rjsx)
+    (erase-buffer)
+    (rjsx-mode)
+    (insert "let c = <div>{a && <Component a={123}/")
+    (save-excursion (insert ">}</div>"))
+    (setq js2-mode-ast nil)
+    (rjsx--tag-at-point) ;; Should not error
+    (setq js2-mode-ast nil)
+    (let ((rjsx-max-size-for-frequent-reparse (1- (point-max))))
+      (should-error (rjsx--tag-at-point)))))
 
 ;;; rjsx-tests.el ends here

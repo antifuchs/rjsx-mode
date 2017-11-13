@@ -4,7 +4,7 @@
 
 ;; Author: Felipe Ochoa <felipe@fov.space>
 ;; URL: https://github.com/felipeochoa/rjsx-mode/
-;; Package-Requires: ((emacs "24.4") (js2-mode "20160623"))
+;; Package-Requires: ((emacs "24.4") (js2-mode "20170504"))
 ;; Version: 1.1
 ;; Keywords: languages
 
@@ -36,6 +36,14 @@
 (defgroup rjsx-mode nil
   "Support for JSX."
   :group 'js2-mode)
+
+(defcustom rjsx-max-size-for-frequent-reparse 100000
+  "Buffers with fewer than this many characters will be parsed more frequently.
+Set this to 0 to disable the reparsing altogether.  The frequent
+parsing supports the magic `rjsx-electric-lt' and
+`rjsx-delete-creates-full-tag' behaviors."
+  :group 'rjsx-mode
+  :type 'integer)
 
 ;;;###autoload
 (define-derived-mode rjsx-mode js2-jsx-mode "RJSX"
@@ -69,6 +77,11 @@ the `:around' combinator.  JS2-PARSER is the original XML parser."
 (defface rjsx-attr
   '((t . (:inherit font-lock-variable-name-face)))
   "`rjsx-mode' face used to highlight JSX attribute names."
+  :group 'rjsx-mode)
+
+(defface rjsx-text
+  '((t . (:inherit font-lock-string-face)))
+  "`rjsx-mode' face used to highlight JSX text."
   :group 'rjsx-mode)
 
 
@@ -118,8 +131,8 @@ the `:around' combinator.  JS2-PARSER is the original XML parser."
   closing-tag) ; AST node with the tag closer
 
 
-(put 'cl-struct-rjsx-node 'js2-visitor 'rjsx-node-visit)
-(put 'cl-struct-rjsx-node 'js2-printer 'rjsx-node-print)
+(js2--struct-put 'rjsx-node 'js2-visitor 'rjsx-node-visit)
+(js2--struct-put 'rjsx-node 'js2-printer 'rjsx-node-print)
 (defun rjsx-node-visit (ast callback)
   "Visit the `rjsx-node' children of AST, invoking CALLBACK on them."
   (js2-visit-ast (rjsx-node-name ast) callback)
@@ -179,8 +192,8 @@ Sets KID's parent to N."
                (:constructor make-rjsx-closing-tag (&key pos len name)))
   name) ; A rjsx-identifier or rjsx-member node
 
-(put 'cl-struct-rjsx-closing-tag 'js2-visitor 'rjsx-closing-tag-visit)
-(put 'cl-struct-rjsx-closing-tag 'js2-printer 'rjsx-closing-tag-print)
+(js2--struct-put 'rjsx-closing-tag 'js2-visitor 'rjsx-closing-tag-visit)
+(js2--struct-put 'rjsx-closing-tag 'js2-printer 'rjsx-closing-tag-print)
 
 (defun rjsx-closing-tag-visit (ast callback)
   "Visit the `rjsx-closing-tag' children of AST, invoking CALLBACK on them."
@@ -206,8 +219,12 @@ Sets KID's parent to N."
   (namespace nil)
   name)  ; js2-name-node
 
-(put 'cl-struct-rjsx-identifier 'js2-visitor 'js2-visit-none)
-(put 'cl-struct-rjsx-identifier 'js2-printer 'rjsx-identifier-print)
+(js2--struct-put 'rjsx-identifier 'js2-visitor 'rjsx-identifier-visit)
+(js2--struct-put 'rjsx-identifier 'js2-printer 'rjsx-identifier-print)
+
+(defun rjsx-identifier-visit (n callback)
+  "Visit N's children can call CALLBACK on them."
+  (js2-visit-ast (rjsx-identifier-name n) callback))
 
 (defun rjsx-identifier-print (node indent-level)
   "Print the `rjsx-identifier' NODE at INDENT-LEVEL."
@@ -226,8 +243,13 @@ Sets KID's parent to N."
   dots-pos  ; List of positions of each dot
   idents)   ; List of rjsx-identifier nodes
 
-(put 'cl-struct-rjsx-member 'js2-visitor 'js2-visit-none)
-(put 'cl-struct-rjsx-member 'js2-printer 'rjsx-member-print)
+(js2--struct-put 'rjsx-member 'js2-visitor 'rjsx-member-visit)
+(js2--struct-put 'rjsx-member 'js2-printer 'rjsx-member-print)
+
+(defun rjsx-member-visit (n callback)
+  "Visit N's children and call CALLBACK on them."
+  (dolist (ident (rjsx-member-idents n))
+    (js2-visit-ast ident callback)))
 
 (defun rjsx-member-print (node indent-level)
   "Print the `rjsx-member' NODE at INDENT-LEVEL."
@@ -245,8 +267,8 @@ Sets KID's parent to N."
   name    ; a rjsx-identifier
   value)  ; a js2-expression
 
-(put 'cl-struct-rjsx-attr 'js2-visitor 'rjsx-attr-visit)
-(put 'cl-struct-rjsx-attr 'js2-printer 'rjsx-attr-print)
+(js2--struct-put 'rjsx-attr 'js2-visitor 'rjsx-attr-visit)
+(js2--struct-put 'rjsx-attr 'js2-printer 'rjsx-attr-print)
 
 (defun rjsx-attr-visit (ast callback)
   "Visit the `rjsx-attr' children of AST, invoking CALLBACK on them."
@@ -266,8 +288,8 @@ Sets KID's parent to N."
                (:constructor make-rjsx-spread (&key pos len expr)))
   expr)  ; a js2-expression
 
-(put 'cl-struct-rjsx-spread 'js2-visitor 'rjsx-spread-visit)
-(put 'cl-struct-rjsx-spread 'js2-printer 'rjsx-spread-print)
+(js2--struct-put 'rjsx-spread 'js2-visitor 'rjsx-spread-visit)
+(js2--struct-put 'rjsx-spread 'js2-printer 'rjsx-spread-print)
 
 (defun rjsx-spread-visit (ast callback)
   "Visit the `rjsx-spread' children of AST, invoking CALLBACK on them."
@@ -285,8 +307,8 @@ Sets KID's parent to N."
                (:constructor make-rjsx-wrapped-expr (&key pos len child)))
   child)
 
-(put 'cl-struct-rjsx-wrapped-expr 'js2-visitor 'rjsx-wrapped-expr-visit)
-(put 'cl-struct-rjsx-wrapped-expr 'js2-printer 'rjsx-wrapped-expr-print)
+(js2--struct-put 'rjsx-wrapped-expr 'js2-visitor 'rjsx-wrapped-expr-visit)
+(js2--struct-put 'rjsx-wrapped-expr 'js2-printer 'rjsx-wrapped-expr-print)
 
 (defun rjsx-wrapped-expr-visit (ast callback)
   "Visit the `rjsx-wrapped-expr' child of AST, invoking CALLBACK on them."
@@ -306,8 +328,8 @@ Sets KID's parent to N."
                                                      value)))
   value)  ; a string
 
-(put 'cl-struct-rjsx-text 'js2-visitor 'js2-visit-none)
-(put 'cl-struct-rjsx-text 'js2-printer 'rjsx-text-print)
+(js2--struct-put 'rjsx-text 'js2-visitor 'js2-visit-none)
+(js2--struct-put 'rjsx-text 'js2-printer 'rjsx-text-print)
 
 (defun rjsx-text-print (node _indent-level)
   "Print the `rjsx-text' NODE at INDENT-LEVEL."
@@ -512,6 +534,7 @@ Assumes the current token is a '{'."
         name
       (setf (rjsx-attr-name pn) name)
       (setq beg (js2-node-pos name))
+      (setf (js2-node-pos pn) beg)
       (js2-node-add-children pn name)
       (rjsx-maybe-message "Got the name for the attr: `%s'" (rjsx-identifier-full-name name))
       (if (js2-match-token js2-ASSIGN)  ; Won't consume on error
@@ -633,12 +656,14 @@ argument ALLOW-NS is nil, does not allow namespaced names."
             (setq continue (and (not matched-colon) (= (js2-peek-token) js2-COLON)))))
         (when face
           (js2-set-face beg (js2-current-token-end) face 'record))
-        (setf (js2-node-len pn) (- (js2-current-token-end) beg)
-              (rjsx-identifier-name pn) (if name-start
-                                            (make-js2-name-node :pos name-start
-                                                                :len (- (js2-current-token-end) name-start)
-                                                                :name (apply #'concat (nreverse name-parts)))
-                                          (make-js2-name-node :pos (js2-current-token-end) :len 0 :name "")))
+        (let ((name-node (if name-start
+                             (make-js2-name-node :pos name-start
+                                                 :len (- (js2-current-token-end) name-start)
+                                                 :name (apply #'concat (nreverse name-parts)))
+                           (make-js2-name-node :pos (js2-current-token-end) :len 0 :name ""))))
+          (setf (js2-node-len pn) (- (js2-current-token-end) beg)
+                (rjsx-identifier-name pn) name-node)
+          (js2-node-add-children pn name-node))
         pn)
     (make-js2-error-node :len (js2-current-token-len))))
 
@@ -667,6 +692,7 @@ parse."
       (unless (js2-error-node-p ident)
         (setq end (js2-current-token-end)))
       (js2-node-add-children pn ident))
+    (apply 'js2-node-add-children pn idents)
     (setf (rjsx-member-idents pn) (nreverse idents)
           (rjsx-member-dots-pos pn) (nreverse dots-pos)
           (js2-node-len pn) (- end (js2-node-pos pn)))
@@ -692,6 +718,9 @@ and {}-bracketed expressions.  Return the parsed child."
 
      ((= tt rjsx-JSX-TEXT)
       (rjsx-maybe-message "text node: '%s'" (js2-current-token-string))
+      (js2-set-face (js2-current-token-beg) (js2-current-token-end) 'rjsx-text 'record)
+      (js2-record-text-property (js2-current-token-beg) (js2-current-token-end)
+                                'syntax-table (standard-syntax-table))
       (make-rjsx-text :value (js2-current-token-string)))
 
      ((= tt js2-ERROR)
@@ -707,7 +736,9 @@ closing tag was parsed."
     (if (setq pn (rjsx-parse-empty-tag))
         pn
       (if (js2-match-token js2-DIV)
-          (progn (setq pn (make-rjsx-closing-tag :pos beg :name (rjsx-parse-member-or-ns 'rjsx-tag)))
+          (progn (setq pn (make-rjsx-closing-tag :pos beg
+                                                 :name (rjsx-parse-member-or-ns 'rjsx-tag)))
+                 (js2-node-add-children pn (rjsx-closing-tag-name pn))
                  (if (js2-must-match js2-GT "msg.no.gt.in.closer" beg (- (js2-current-token-end) beg))
                      (rjsx-maybe-message "parsed closing tag")
                    (rjsx-maybe-message "missing closing `>'"))
@@ -759,8 +790,20 @@ closing tag was parsed."
           (throw 'rjsx-eof-while-parsing t))
          (t (js2-add-to-string c)))))))
 
+(js2-deflocal rjsx-buffer-chars-modified-tick 0 "Variable holding the last per-buffer value of `buffer-chars-modified-tick'.")
+
+(defun rjsx-maybe-reparse ()
+  "Called before accessing the parse tree.
+For small buffers, will do an immediate reparse to ensure the
+parse tree is up to date."
+  (when (and (<= (point-max) rjsx-max-size-for-frequent-reparse)
+             (/= rjsx-buffer-chars-modified-tick (buffer-chars-modified-tick)))
+    (js2-reparse)
+    (setq rjsx-buffer-chars-modified-tick (buffer-chars-modified-tick))))
+
 (defun rjsx--tag-at-point ()
   "Return the JSX tag at point, if any, or nil."
+  (rjsx-maybe-reparse)
   (let ((node (js2-node-at-point (point) t)))
     (while (and node (not (rjsx-node-p node)))
       (setq node (js2-node-parent node)))
@@ -769,14 +812,14 @@ closing tag was parsed."
 
 ;;;; Interactive commands and keybindings
 (defun rjsx-electric-lt (n)
-    "Insert a context-sensitive less-than sign.
+  "Insert a context-sensitive less-than sign.
 Optional prefix argument N indicates how many signs to insert.
 If N is greater than one, no special handling takes place.
 Otherwise, if the less-than sign would start a JSX block, it
-inserts `< />' and places the cursor inside the new tag."
+inserts `</>' and places the cursor inside the new tag."
     (interactive "p")
     (if (/= n 1)
-        (insert (make-string n "<"))
+        (insert (make-string n ?<))
       (let ((inhibit-changing-match-data t))
         (if (looking-back (rx (or "=" "(" "?" ":" ">" "}" "&" "|" "{" ","
                                   "return")
@@ -787,6 +830,28 @@ inserts `< />' and places the cursor inside the new tag."
           (insert "<")))))
 
 (define-key rjsx-mode-map "<" 'rjsx-electric-lt)
+
+(defun rjsx-electric-gt (n)
+  "Insert a context-sensitive greater-than sign.
+Optional prefix argument N indicates how many signs to insert.
+If N is greater than one, no special handling takes place.
+Otherwise, if point is in a self-closing JSX tag just before the
+slash, it creates a matching end-tag and places point just inside
+the tags."
+  (interactive "p")
+  (if (or (/= n 1)
+          (not (eq (get-char-property (point) 'rjsx-class) 'self-closing-slash)))
+      (insert (make-string n ?>))
+    (let ((node (rjsx--tag-at-point)))
+      (if node
+          (progn
+            (delete-char 1)
+            (search-forward ">")
+            (save-excursion
+              (insert "</" (rjsx-node-opening-tag-name node) ">")))
+        (insert (make-string n ?>))))))
+
+(define-key rjsx-mode-map ">" 'rjsx-electric-gt)
 
 (defun rjsx-delete-creates-full-tag (n &optional killflag)
   "N and KILLFLAG are as in `delete-char'.
